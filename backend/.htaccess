@@ -1,0 +1,48 @@
+# OpenUniverse Backend API
+# Security & Access Control
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /openuniverse/backend/
+    
+    # Prevent direct access to logs, config, models, middleware directories
+    RewriteRule ^(config|logs|models|middleware)/ - [F,L]
+    
+    # Allow direct access to PHP files and other resources
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header always set X-Frame-Options "SAMEORIGIN"
+    
+    # Prevent MIME sniffing
+    Header always set X-Content-Type-Options "nosniff"
+    
+    # Enable XSS protection
+    Header always set X-XSS-Protection "1; mode=block"
+    
+    # Content Security Policy (basic)
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+</IfModule>
+
+# Disable directory listing
+Options -Indexes
+
+# UTF-8 Encoding
+AddDefaultCharset utf-8
+
+# CORS Headers (if Apache is being used with mod_cors)
+<IfModule mod_cors.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+
+# Deny access to sensitive files
+<FilesMatch "\.(env|sql|log|conf)$">
+    Deny from all
+</FilesMatch>
