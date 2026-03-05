@@ -1,458 +1,400 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Users, TrendingUp, BookOpen, ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { Search, Flame, Plus, MessageSquare, TrendingUp, X, Clock, Award } from "lucide-react";
+import { useState, useEffect } from "react";
+import { PostCard } from "./community/PostCard";
+import { PostDetail } from "./community/PostDetail";
+import { NamePopup } from "./community/NamePopup";
+import type { Post } from "../types/community";
 
-interface Post {
-  id: number;
-  author: string;
-  title: string;
-  content: string;
-  replies: number;
-  views: number;
-  date: string;
-}
+const backendUrl = "http://localhost/Open-universe/openuniv/backend/api/community.php";
 
-interface FAQItem {
-  id: number;
-  question: string;
-  answer: string;
-}
+export const timeAgo = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (diffInSeconds < 60) return "Just now";
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours}h ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  return `${diffInDays}d ago`;
+};
 
 const Community = () => {
-  const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [userName, setUserName] = useState<string>('');
+  const [sortParam, setSortParam] = useState<'hot' | 'new' | 'top'>('hot');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newPostTitle, setNewPostTitle] = useState("");
+  const [newPostContent, setNewPostContent] = useState("");
+  const [sidebarData, setSidebarData] = useState({
+    stats: { members: 15300, online: 342 },
+    trending: [] as any[]
+  });
 
-  // Statistics
-  const stats = [
-    { icon: MessageSquare, label: "Total Posts", value: "2,847", color: "rgba(212,168,83,0.15)" },
-    { icon: BookOpen, label: "Total Replies", value: "12,394", color: "rgba(107,155,181,0.15)" },
-    { icon: Users, label: "Active Members", value: "1,523", color: "rgba(93,154,158,0.15)" },
-    { icon: TrendingUp, label: "Discussions", value: "856", color: "rgba(220,120,120,0.15)" },
-  ];
+  const fetchSidebarData = async () => {
+    try {
+      const res = await fetch(`${backendUrl}?action=get_sidebar_data`);
+      const json = await res.json();
+      if (json.success) {
+        setSidebarData(json.data);
+      }
+    } catch(err) {
+      console.error(err);
+    }
+  };
 
-  // Recent posts
-  const recentPosts: Post[] = [
-    {
-      id: 1,
-      author: "Alex Johnson",
-      title: "Best practices for contributing to open source projects",
-      content: "Share your experience with the community. Here are some key tips I've learned over the years...",
-      replies: 24,
-      views: 342,
-      date: "2 hours ago"
-    },
-    {
-      id: 2,
-      author: "Sarah Chen",
-      title: "How to set up your development environment",
-      content: "A comprehensive guide for beginners to get started with open source contribution.",
-      replies: 18,
-      views: 256,
-      date: "5 hours ago"
-    },
-    {
-      id: 3,
-      author: "Marcus Williams",
-      title: "Advanced Git workflows for collaborative development",
-      content: "Deep dive into Git workflows that teams use for managing large-scale projects.",
-      replies: 32,
-      views: 512,
-      date: "1 day ago"
-    },
-    {
-      id: 4,
-      author: "Emma Rodriguez",
-      title: "Debugging tips for JavaScript developers",
-      content: "Collection of useful debugging strategies and tools that can save you hours.",
-      replies: 41,
-      views: 678,
-      date: "2 days ago"
-    },
-  ];
+  const fetchPosts = async (pageNum = 1) => {
+    if (pageNum > 1) setLoadingMore(true);
+    try {
+      const res = await fetch(`${backendUrl}?action=get_posts&sort=${sortParam}&page=${pageNum}&limit=10&search=${encodeURIComponent(searchQuery)}`);
+      const json = await res.json();
+      if (json.success) {
+        const parsedPosts = json.data.map((p: any) => ({
+          id: p.id.toString(),
+          author: { name: p.author_name },
+          title: p.title || p.content.substring(0, 30),
+          content: p.content,
+          tags: [p.category],
+          upvotes: Number(p.upvotes),
+          commentCount: Number(p.comment_count),
+          timestamp: timeAgo(p.created_at)
+        }));
+        
+        if (pageNum === 1) {
+          setPosts(parsedPosts);
+        } else {
+          setPosts(prev => [...prev, ...parsedPosts]);
+        }
+        
+        setHasMore(json.hasMore);
 
-  // FAQ
-  const faqItems: FAQItem[] = [
-    {
-      id: 1,
-      question: "How do I start contributing to the OpenUniverse platform?",
-      answer: "To get started, create an account on our platform, browse the available projects, and submit your first pull request. You can find beginner-friendly issues labeled 'good-first-issue' in any project."
-    },
-    {
-      id: 2,
-      question: "What are the requirements to become a project maintainer?",
-      answer: "You need at least 50 successful contributions, a strong community reputation, and demonstrated code quality. Apply through your dashboard after meeting these criteria."
-    },
-    {
-      id: 3,
-      question: "How is XP calculated and How can I level up faster?",
-      answer: "XP is awarded based on contributions, code reviews, and community engagement. You can level up faster by tackling harder problems, helping others in discussions, and being consistent with your contributions."
-    },
-    {
-      id: 4,
-      question: "Can I participate in events even if I'm a beginner?",
-      answer: "Absolutely! We have events tailored for all skill levels - beginner to advanced. Check the Events section to find hackathons, workshops, and drives suited to your experience level."
-    },
-    {
-      id: 5,
-      question: "How do I report bugs or suggest new features?",
-      answer: "You can create a new discussion post in the Community section or open an issue on the specific project repository. Our team reviews all suggestions and prioritizes them based on community feedback."
-    },
-    {
-      id: 6,
-      question: "Is there a Code of Conduct I should follow?",
-      answer: "Yes, we have a community Code of Conduct that all members must follow. It ensures a respectful, inclusive, and welcoming environment for everyone. You can find it in the Docs section."
-    },
-  ];
+        // Check if URL has a direct link to a post (only on initial load)
+        if (pageNum === 1) {
+          const urlParams = new URLSearchParams(window.location.search);
+          const directPostId = urlParams.get('post');
+          if (directPostId && !selectedPost) {
+            const targetPost = parsedPosts.find((p: Post) => p.id === directPostId);
+            if (targetPost) setSelectedPost(targetPost);
+            
+            // Clear URL parameter without reloading
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.pushState({ path: newUrl }, '', newUrl);
+          }
+        }
+      }
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    setPage(1);
+    const timeout = setTimeout(() => {
+      fetchPosts(1);
+    }, 300); // 300ms debounce for search typing
+    return () => clearTimeout(timeout);
+  }, [sortParam, searchQuery]); // Re-fetch when sorting or search changes
+
+  const loadMorePosts = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchPosts(nextPage);
+  };
+
+  useEffect(() => {
+    fetchSidebarData();
+  }, []);
+
+  const handleCreatePost = async () => {
+    if (!newPostTitle.trim() || !newPostContent.trim()) return;
+    try {
+      const res = await fetch(`${backendUrl}?action=create_post`, {
+        method: "POST",
+        body: JSON.stringify({
+          author_name: userName,
+          title: newPostTitle,
+          content: newPostContent,
+          category: "Discussion"
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setShowCreateModal(false);
+        setNewPostTitle("");
+        setNewPostContent("");
+        setPage(1);
+        fetchPosts(1); // Refresh
+        fetchSidebarData(); // Refresh stats
+      }
+    } catch(err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div style={{ minHeight: "100vh", paddingBottom: "4rem" }}>
-      <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 2rem" }}>
+      <NamePopup onNameSet={setUserName} />
 
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ marginBottom: "3rem", textAlign: "center" }}
-        >
-          <h1 style={{
-            fontSize: "clamp(2rem, 5vw, 2.5rem)",
-            fontWeight: 700,
-            marginBottom: "1rem",
-            color: "var(--text-primary)"
-          }}>
-            💬 Community
-          </h1>
-          <p style={{
-            fontSize: "clamp(0.95rem, 2vw, 1.1rem)",
-            color: "var(--text-muted)",
-            maxWidth: "600px",
-            margin: "0 auto"
-          }}>
-            Connect with developers, share knowledge, and collaborate on projects. Join our thriving community of open-source enthusiasts.
-          </p>
-        </motion.div>
-
-        {/* Statistics Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: "1.5rem",
-            marginBottom: "3rem"
-          }}
-        >
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + index * 0.05 }}
-                whileHover={{ y: -4 }}
-                style={{
-                  background: stat.color,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "16px",
-                  padding: "1.5rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.8rem"
-                }}
-              >
-                <div style={{
-                  width: "44px",
-                  height: "44px",
-                  borderRadius: "999px",
-                  background: "rgba(255,255,255,0.1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
-                }}>
-                  <Icon size={22} style={{ color: "var(--color-accent)" }} />
-                </div>
-                <div>
-                  <p style={{
-                    fontSize: "0.85rem",
-                    color: "var(--text-muted)",
-                    margin: "0 0 0.3rem 0"
-                  }}>
-                    {stat.label}
-                  </p>
-                  <h3 style={{
-                    fontSize: "1.8rem",
-                    fontWeight: 700,
-                    margin: 0,
-                    color: "var(--text-primary)"
-                  }}>
-                    {stat.value}
-                  </h3>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
-
-        {/* Recent Posts Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          style={{ marginBottom: "3rem" }}
-        >
-          <h2 style={{
-            fontSize: "clamp(1.5rem, 4vw, 1.8rem)",
-            fontWeight: 700,
-            marginBottom: "2rem",
-            color: "var(--text-primary)"
-          }}>
-            Recent Discussions
-          </h2>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
-            {recentPosts.map((post, index) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 + index * 0.05 }}
-                whileHover={{ x: 4 }}
-                style={{
-                  background: "rgba(212,168,83,0.08)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "16px",
-                  padding: "1.5rem",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease"
-                }}
-              >
-                <div style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.8rem"
-                }}>
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: "1rem",
-                    flexWrap: "wrap"
-                  }}>
-                    <div>
-                      <p style={{
-                        fontSize: "0.85rem",
-                        color: "var(--text-muted)",
-                        margin: "0 0 0.4rem 0"
-                      }}>
-                        Posted by <span style={{ color: "var(--color-accent)" }}>{post.author}</span> • {post.date}
-                      </p>
-                      <h3 style={{
-                        fontSize: "1.1rem",
-                        fontWeight: 600,
-                        margin: 0,
-                        color: "var(--text-primary)"
-                      }}>
-                        {post.title}
-                      </h3>
-                    </div>
-                  </div>
-
-                  <p style={{
-                    fontSize: "0.95rem",
-                    color: "var(--text-secondary)",
-                    margin: 0,
-                    lineHeight: "1.5"
-                  }}>
-                    {post.content}
-                  </p>
-
-                  {/* Post Stats */}
-                  <div style={{
-                    display: "flex",
-                    gap: "1.5rem",
-                    borderTop: "1px solid rgba(255,255,255,0.08)",
-                    paddingTop: "0.8rem",
-                    flexWrap: "wrap"
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "var(--text-muted)" }}>
-                      <MessageSquare size={16} />
-                      {post.replies} replies
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", color: "var(--text-muted)" }}>
-                      <TrendingUp size={16} />
-                      {post.views} views
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* FAQ Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <h2 style={{
-            fontSize: "clamp(1.5rem, 4vw, 1.8rem)",
-            fontWeight: 700,
-            marginBottom: "2rem",
-            color: "var(--text-primary)"
-          }}>
-            Frequently Asked Questions
-          </h2>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {faqItems.map((item, index) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + index * 0.05 }}
-              >
-                <motion.button
-                  onClick={() => setExpandedFAQ(expandedFAQ === item.id ? null : item.id)}
-                  style={{
-                    width: "100%",
-                    background: "rgba(93,154,158,0.1)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: "16px",
-                    padding: "1.5rem",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "all 0.3s ease",
-                    gap: "1rem"
-                  }}
-                  whileHover={{
-                    background: "rgba(93,154,158,0.15)",
-                  }}
-                >
-                  <h3 style={{
-                    fontSize: "1rem",
-                    fontWeight: 600,
-                    margin: 0,
-                    color: "var(--text-primary)",
-                    flex: 1
-                  }}>
-                    {item.question}
-                  </h3>
-                  <motion.div
-                    animate={{ rotate: expandedFAQ === item.id ? 180 : 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <ChevronDown size={20} style={{ color: "var(--color-accent)", flexShrink: 0 }} />
-                  </motion.div>
-                </motion.button>
-
-                <AnimatePresence>
-                  {expandedFAQ === item.id && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.3 }}
-                      style={{
-                        overflow: "hidden",
-                        borderLeft: "2px solid var(--color-accent)"
-                      }}
-                    >
-                      <div style={{
-                        padding: "1rem 1.5rem",
-                        background: "rgba(93,154,158,0.05)",
-                        borderRight: "1px solid rgba(255,255,255,0.08)",
-                        borderBottom: "1px solid rgba(255,255,255,0.08)",
-                        borderBottomLeftRadius: "16px",
-                        borderBottomRightRadius: "16px"
-                      }}>
-                        <p style={{
-                          fontSize: "0.95rem",
-                          color: "var(--text-secondary)",
-                          margin: 0,
-                          lineHeight: "1.6"
-                        }}>
-                          {item.answer}
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* CTA Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          style={{
-            marginTop: "4rem",
-            marginBottom: "2rem",
-            textAlign: "center"
-          }}
-        >
-          <div style={{
-            background: "linear-gradient(135deg, rgba(212,168,83,0.15) 0%, rgba(93,154,158,0.15) 100%)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: "16px",
-            padding: "2.5rem",
-            maxWidth: "600px",
-            margin: "0 auto"
-          }}>
-            <h3 style={{
-              fontSize: "1.4rem",
-              fontWeight: 700,
-              marginBottom: "0.8rem",
-              color: "var(--text-primary)"
-            }}>
-              Join the Conversation
-            </h3>
-            <p style={{
-              fontSize: "0.95rem",
-              color: "var(--text-muted)",
-              marginBottom: "1.5rem",
-              margin: "0 0 1.5rem 0"
-            }}>
-              Have a question or want to share your experience? Start a new discussion or reply to existing threads.
+      {/* Header Banner */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(30,30,30,1) 0%, rgba(20,20,20,1) 100%)",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        padding: "3rem 0",
+        marginBottom: "2rem"
+      }}>
+        <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 2rem", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+            <h1 style={{ fontSize: "2.5rem", fontWeight: 800, margin: "0 0 0.5rem 0", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "12px" }}>
+              <MessageSquare size={36} color="var(--color-primary)" />
+              Discussions
+            </h1>
+            <p style={{ fontSize: "1.1rem", color: "var(--text-muted)", margin: 0 }}>
+              The hub for developers to share, help, and grow together. {userName && `Welcome, ${userName}!`}
             </p>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              style={{
-                padding: "0.8rem 2rem",
-                borderRadius: "999px",
-                border: "none",
-                background: "var(--color-accent)",
-                color: "var(--color-primary)",
-                fontWeight: 600,
-                fontSize: "0.95rem",
-                cursor: "pointer"
-              }}
-            >
-              Start a Discussion
-            </motion.button>
-          </div>
-        </motion.div>
+          </motion.div>
 
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+            <button style={{
+              display: "flex", alignItems: "center", gap: "8px", background: "#f5f5f5", color: "#000",
+              border: "none", padding: "12px 24px", borderRadius: "999px", fontSize: "1rem", fontWeight: 700,
+              cursor: "pointer", transition: "transform 0.2s, box-shadow 0.2s"
+            }}
+             onClick={() => setShowCreateModal(true)}
+             onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(212,168,83,0.3)' }}
+             onMouseOut={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}
+            >
+              <Plus size={20} />
+              Create Post
+            </button>
+          </motion.div>
+        </div>
       </div>
 
-      {/* Shimmer Animation */}
+      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 2rem", display: "flex", gap: "2rem", flexDirection: "row", alignItems: "flex-start" }}>
+        
+        {/* Main Feed Content (Left Column) */}
+        <div style={{ flex: "1 1 min(100%, 800px)", minWidth: 0 }}>
+          <AnimatePresence mode="wait">
+            {selectedPost ? (
+              <motion.div key="detail" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <PostDetail post={selectedPost} onBack={() => { setSelectedPost(null); fetchPosts(); }} userName={userName} />
+              </motion.div>
+            ) : (
+              <motion.div key="feed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {/* Feed Controls */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
+                  <div style={{ display: "flex", gap: "12px", background: "rgba(30,30,30,0.5)", padding: "4px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <button 
+                      onClick={() => setSortParam('hot')}
+                      style={{ display: "flex", alignItems: "center", gap: "6px", background: sortParam === 'hot' ? "rgba(255,255,255,0.1)" : "transparent", border: "none", color: sortParam === 'hot' ? "var(--text-primary)" : "var(--text-muted)", padding: "8px 16px", borderRadius: "6px", fontSize: "0.9rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <Flame size={18} color={sortParam === 'hot' ? "var(--color-accent)" : "currentColor"} /> Hot
+                    </button>
+                    <button 
+                      onClick={() => setSortParam('new')}
+                      style={{ display: "flex", alignItems: "center", gap: "6px", background: sortParam === 'new' ? "rgba(255,255,255,0.1)" : "transparent", border: "none", color: sortParam === 'new' ? "var(--text-primary)" : "var(--text-muted)", padding: "8px 16px", borderRadius: "6px", fontSize: "0.9rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <Clock size={16} /> New
+                    </button>
+                    <button 
+                      onClick={() => setSortParam('top')}
+                      style={{ display: "flex", alignItems: "center", gap: "6px", background: sortParam === 'top' ? "rgba(255,255,255,0.1)" : "transparent", border: "none", color: sortParam === 'top' ? "var(--text-primary)" : "var(--text-muted)", padding: "8px 16px", borderRadius: "6px", fontSize: "0.9rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <Award size={18} color={sortParam === 'top' ? "var(--color-primary)" : "currentColor"} /> Top
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <div style={{ position: "relative" }}>
+                      <Search size={18} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+                      <input 
+                        type="text" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search posts..." 
+                        style={{ background: "rgba(30,30,30,0.5)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", padding: "10px 12px 10px 40px", color: "var(--text-primary)", fontSize: "0.9rem", width: "250px", outline: "none" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Posts List */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {posts.length === 0 ? (
+                    <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)", background: "rgba(30,30,30,0.4)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <MessageSquare size={48} style={{ opacity: 0.5, marginBottom: "1rem" }} />
+                      <h3>No posts yet</h3>
+                      <p>Be the first to start a discussion!</p>
+                    </div>
+                  ) : (
+                    posts.map((post) => (
+                      <PostCard key={post.id} post={post} userName={userName} onClick={() => setSelectedPost(post)} onRefresh={fetchPosts} />
+                    ))
+                  )}
+                  {hasMore && posts.length > 0 && (
+                    <button 
+                      onClick={loadMorePosts} 
+                      disabled={loadingMore}
+                      style={{ 
+                        marginTop: "1rem", width: "100%", padding: "12px", borderRadius: "8px", 
+                        background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", 
+                        color: "var(--text-primary)", fontWeight: 600, cursor: loadingMore ? "default" : "pointer", 
+                        transition: "all 0.2s", opacity: loadingMore ? 0.5 : 1
+                      }}
+                      onMouseOver={(e) => { if(!loadingMore) e.currentTarget.style.background = "rgba(255,255,255,0.1)" }}
+                      onMouseOut={(e) => { if(!loadingMore) e.currentTarget.style.background = "rgba(255,255,255,0.05)" }}
+                    >
+                      {loadingMore ? "Loading..." : "Load More Posts"}
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Sidebar (Right Column) */}
+        {!selectedPost && (
+          <div style={{ width: "300px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "1.5rem" }} className="community-sidebar">
+            {/* About Community Card */}
+            <div style={{ background: "rgba(30,30,30,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", overflow: "hidden" }}>
+              <div style={{ background: "var(--color-primary)", height: "8px" }} />
+              <div style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 0.5rem 0" }}>About Community</h3>
+                <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: "1.5", margin: "0 0 1.5rem 0" }}>
+                  Welcome to the OpenUniverse community! This is the place to discuss development, help others, and share your open-source journey.
+                </p>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                   <div>
+                     <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-primary)" }}>{(sidebarData.stats.members / 1000).toFixed(1)}k</div>
+                     <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Members</div>
+                   </div>
+                   <div>
+                     <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "1.2rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                       <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10b981" }}></span>
+                       {sidebarData.stats.online}
+                     </div>
+                     <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Online</div>
+                   </div>
+                </div>
+
+                <button style={{ width: "100%", background: "transparent", color: "var(--text-primary)", border: "1px solid var(--text-muted)", padding: "10px", borderRadius: "999px", fontSize: "0.95rem", fontWeight: 600, cursor: "pointer", transition: "background 0.2s" }}
+                  onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                  onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
+                >
+                  Join Community
+                </button>
+              </div>
+            </div>
+
+            {/* Trending Topics Card */}
+            <div style={{ background: "rgba(30,30,30,0.4)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", padding: "1.5rem" }}>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 1rem 0", display: "flex", alignItems: "center", gap: "8px" }}>
+                <TrendingUp size={18} color="var(--color-primary)" />
+                Trending Topics
+              </h3>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {sidebarData.trending.map((topic, idx) => (
+                  <div key={topic.id} style={{ display: "flex", flexDirection: "column", gap: "4px", cursor: "pointer" }} className="trending-item">
+                    <div style={{ fontSize: "0.95rem", fontWeight: 500, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {idx + 1}. {topic.title}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      {topic.postsCount} comments
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Create Post Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+              background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)",
+              display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              style={{
+                background: "rgba(20,20,20,1)", border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "16px", width: "90%", maxWidth: "600px", padding: "24px"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                <h2 style={{ fontSize: "1.5rem", margin: 0, color: "var(--text-primary)" }}>Create Post</h2>
+                <button onClick={() => setShowCreateModal(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+                  <X size={24} />
+                </button>
+              </div>
+
+              <input 
+                value={newPostTitle}
+                onChange={(e) => setNewPostTitle(e.target.value)}
+                placeholder="Title"
+                style={{
+                  width: "100%", padding: "14px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "8px", color: "var(--text-primary)", fontSize: "1.1rem", marginBottom: "16px", outline: "none",
+                  boxSizing: 'border-box'
+                }}
+              />
+              <textarea 
+                value={newPostContent}
+                onChange={(e) => setNewPostContent(e.target.value)}
+                placeholder="What are your thoughts?"
+                style={{
+                  width: "100%", padding: "14px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "8px", color: "var(--text-primary)", fontSize: "1rem", minHeight: "150px", outline: "none",
+                  resize: "vertical", fontFamily: "inherit", boxSizing: 'border-box'
+                }}
+              />
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "20px" }}>
+                <button onClick={() => setShowCreateModal(false)} style={{ background: "none", border: "1px solid rgba(255,255,255,0.2)", padding: "10px 20px", borderRadius: "8px", color: "var(--text-primary)", fontWeight: 600, cursor: "pointer" }}>
+                  Cancel
+                </button>
+                <button onClick={handleCreatePost} disabled={!newPostTitle.trim() || !newPostContent.trim()} style={{ background: "#f5f5f5", border: "none", padding: "10px 24px", borderRadius: "8px", color: "#000", fontWeight: 700, cursor: (!newPostTitle.trim() || !newPostContent.trim()) ? "default" : "pointer", opacity: (!newPostTitle.trim() || !newPostContent.trim()) ? 0.5 : 1 }}>
+                  Post
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <style>{`
-        @keyframes shimmer {
-          0% {
-            background-position: -1000px 0;
+        @media (max-width: 900px) {
+          .community-sidebar {
+            display: none !important;
           }
-          100% {
-            background-position: 1000px 0;
-          }
+        }
+        .trending-item:hover div:first-child {
+          color: var(--color-primary) !important;
+          text-decoration: underline;
         }
       `}</style>
     </div>
