@@ -11,7 +11,7 @@ interface PostDetailProps {
   onBack: () => void;
 }
 
-const backendUrl = "http://localhost/Open-universe/openuniv/backend/api/community.php";
+const backendUrl = "http://localhost/openuniverse/backend/api/community.php";
 
 export const PostDetail = ({ post, userName, onBack }: PostDetailProps) => {
   const [upvotes, setUpvotes] = useState(post.upvotes);

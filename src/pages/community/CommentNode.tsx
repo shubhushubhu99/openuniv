@@ -12,7 +12,7 @@ interface CommentNodeProps {
   onCommentAdded: () => void;
 }
 
-const backendUrl = "http://localhost/Open-universe/openuniv/backend/api/community.php";
+const backendUrl = "http://localhost/openuniverse/backend/api/community.php";
 
 export const CommentNode = ({ comment, allComments, depth = 0, postId, userName, onCommentAdded }: CommentNodeProps) => {
   const [upvotes, setUpvotes] = useState(Number(comment.upvotes));

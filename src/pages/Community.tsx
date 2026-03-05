@@ -6,7 +6,7 @@ import { PostDetail } from "./community/PostDetail";
 import { NamePopup } from "./community/NamePopup";
 import type { Post } from "../types/community";
 
-const backendUrl = "http://localhost/Open-universe/openuniv/backend/api/community.php";
+const backendUrl = "http://localhost/openuniverse/backend/api/community.php";
 
 export const timeAgo = (dateString: string) => {
   const date = new Date(dateString);
@@ -117,10 +117,22 @@ const Community = () => {
   }, []);
 
   const handleCreatePost = async () => {
-    if (!newPostTitle.trim() || !newPostContent.trim()) return;
+    console.log('Post button clicked');
+    console.log('Title:', newPostTitle, 'Content:', newPostContent, 'User:', userName);
+    
+    if (!newPostTitle.trim() || !newPostContent.trim()) {
+      console.warn('Form validation failed: missing title or content');
+      return;
+    }
+    
     try {
+      console.log('Sending POST request to:', backendUrl);
       const res = await fetch(`${backendUrl}?action=create_post`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "include",
         body: JSON.stringify({
           author_name: userName,
           title: newPostTitle,
@@ -128,7 +140,11 @@ const Community = () => {
           category: "Discussion"
         })
       });
+      
+      console.log('Response status:', res.status);
       const json = await res.json();
+      console.log('Response data:', json);
+      
       if (json.success) {
         setShowCreateModal(false);
         setNewPostTitle("");
@@ -136,9 +152,13 @@ const Community = () => {
         setPage(1);
         fetchPosts(1); // Refresh
         fetchSidebarData(); // Refresh stats
+      } else {
+        console.error('Failed to create post:', json.message);
+        alert('Error: ' + json.message);
       }
     } catch(err) {
-      console.error(err);
+      console.error('Error creating post:', err);
+      alert('Error creating post: ' + err.message);
     }
   };
 

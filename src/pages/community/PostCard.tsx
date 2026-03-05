@@ -11,7 +11,7 @@ interface PostCardProps {
   onRefresh?: () => void;
 }
 
-const backendUrl = "http://localhost/Open-universe/openuniv/backend/api/community.php";
+const backendUrl = "http://localhost/openuniverse/backend/api/community.php";
 
 export const PostCard = ({ post, userName, onClick, onRefresh }: PostCardProps) => {
   const [upvotes, setUpvotes] = useState(post.upvotes);

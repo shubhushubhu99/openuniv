@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS `community_posts` (
   `author_name` varchar(255) NOT NULL,
   `category` varchar(100) NOT NULL DEFAULT 'Discussion',
   `content` text NOT NULL,
+  `title` text NOT NULL,
   `upvotes` int(11) NOT NULL DEFAULT 0,
   `comment_count` int(11) NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
