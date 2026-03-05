@@ -32,7 +32,7 @@
 ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/logs/error.log');
-error_reporting(E_ALL);
+error_reporting(E_ALL); 
 
 // Import helpers
 require_once __DIR__ . '/config/Database.php';
@@ -146,15 +146,15 @@ try {
         'message' => 'An error occurred during login'
     ], 500);
 }
-?>
 
-            "role" => $user['role']
-        ]
-    ]);
-} else {
-    http_response_code(401);
-    echo json_encode([
-        "success" => false,
-        "message" => "Invalid credentials"
-    ]);
-}
+//             "role" => $user['role']
+//         ]
+//     ]);
+// } else {
+//     http_response_code(401);
+//     echo json_encode([
+//         "success" => false,
+//         "message" => "Invalid credentials"
+//     ]);
+// }
+?>
